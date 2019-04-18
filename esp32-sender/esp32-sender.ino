@@ -11,48 +11,51 @@ unsigned int counter = 0;
 String rssi = "RSSI --";
 String packSize = "--";
 String packet ;
-char string[32];
-
+//String string= "i:001:99999999999999999999999999999999";
+char dataString[40];
+char auxString[32];
+int howManyAreSending = 0;
 int scanTime = 5; //In seconds
 BLEScan *pBLEScan;
 
 void AdvertisingPayLoadReader(uint8_t *payload, size_t payloadSize)
 {
-  char auxPayload[32];
   counter++;
 
-
-  sprintf(string, "%02hhX%02hhX%02hhX%02hhX%02hhX%02hhX%02hhX%02hhX%02hhX%02hhX%02hhX%02hhX%02hhX%02hhX%02hhX%02hhX",
+  sprintf(auxString, "%02hhX%02hhX%02hhX%02hhX%02hhX%02hhX%02hhX%02hhX%02hhX%02hhX%02hhX%02hhX%02hhX%02hhX%02hhX%02hhX",
           payload[6], payload[7], payload[8], payload[9],
           payload[10], payload[11], payload[12], payload[13],
           payload[14], payload[15], payload[16], payload[17],
           payload[18], payload[19], payload[20], payload[21]);
-  string[32] = '\0';
-  //  strcpy(string, auxPayload);
-
-
-  printf("\n UUID: %s\n", string);
-
+  String auxString2 = String(auxString);
+  auxString2 += " i: " + String(counter);
+  auxString2.toCharArray(dataString, 40);
+  //Serial.print("Before send: ");
+  //Serial.print(String(howManyAreSending));
   LoRa.beginPacket();
-  LoRa.print(string);
+  LoRa.print(auxString2);
   LoRa.endPacket();
+  //Serial.print("After send: ");
+  //howManyAreSending--;
+  //Serial.print(String(howManyAreSending));
 }
 void LoRaData() {
-
   Heltec.display->clear();
   Heltec.display->setTextAlignment(TEXT_ALIGN_LEFT);
   Heltec.display->setFont(ArialMT_Plain_10);
   Heltec.display->drawString(0 , 0 , "Enviado " + String(counter) + " UUID's");
   Heltec.display->drawString(0 , 15 , "Ultimo enviado:");
-  Heltec.display->drawStringMaxWidth(0 , 30 , 128, string);
+  Serial.print(dataString);
+  Heltec.display->drawStringMaxWidth(0 , 30 , 128, String(dataString));
   Heltec.display->display();
 }
 class MyAdvertisedDeviceCallbacks : public BLEAdvertisedDeviceCallbacks
 {
     void onResult(BLEAdvertisedDevice advertisedDevice)
     {
-      Serial.printf("\n Advertised Device: %s \n", advertisedDevice.toString().c_str());
-      Serial.printf("Advertised getPayloadLength: %d  \n", advertisedDevice.getPayloadLength());
+      //howManyAreSending++;
+      //Serial.printf("\n Advertised Device: %s \n", advertisedDevice.toString().c_str());
+      //Serial.printf("Advertised getPayloadLength: %d  \n", advertisedDevice.getPayloadLength());
       AdvertisingPayLoadReader(advertisedDevice.getPayload(), advertisedDevice.getPayloadLength());
     }
 };

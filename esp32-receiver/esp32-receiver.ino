@@ -10,8 +10,8 @@ const char* ssid = "Asilo 2.4 GHz";
 const char* password = "reppolter99";
 
 //// Add your MQTT Broker IP address, example:
-const char* mqtt_server = "192.168.0.4";
-//const char* mqtt_server = "YOUR_MQTT_BROKER_IP_ADDRESS";
+const char* mqtt_server = "172.23.224.1";
+
 //
 WiFiClient espClient;
 PubSubClient client(espClient);
@@ -35,9 +35,11 @@ void LoRaData() {
   Heltec.display->clear();
   Heltec.display->setTextAlignment(TEXT_ALIGN_LEFT);
   Heltec.display->setFont(ArialMT_Plain_10);
-  Heltec.display->drawString(0 , 15 , "Mensagem: ");
-  Heltec.display->drawStringMaxWidth(0 , 26 , 128, packet);
+  Heltec.display->drawString(0 , 12 , "Mensagem: ");
+  Heltec.display->drawStringMaxWidth(0 , 24 , 128, packet);
   Heltec.display->drawString(0, 0, "Total de UUIDS: " + String(counter));
+  Heltec.display->drawString(0, 48, rssi);
+
   Heltec.display->display();
 }
 
@@ -104,8 +106,7 @@ void reconnect() {
     // Attempt to connect
     if (client.connect("ESP8266Client")) {
       Serial.println("connected");
-      // Subscribe
-      client.subscribe("esp32/output");
+      // Subscribeclient.subscribe("ble/uuid");
     } else {
       Serial.print("failed, rc=");
       Serial.print(client.state());

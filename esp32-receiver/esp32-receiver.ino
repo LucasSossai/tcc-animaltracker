@@ -3,14 +3,15 @@
 #include "images.h"
 #include "WiFi.h"
 #include "Arduino.h"
-#define BAND    915E6  //you can set band here directly,e.g. 868E6,915E6
+
+#define BAND    915E6  //Frequência de operação do LoRa
 
 // Replace the next variables with your SSID/Password combination
 const char* ssid = "Asilo 2.4 GHz";
 const char* password = "reppolter99";
 
 //// Add your MQTT Broker IP address, example:
-const char* mqtt_server = "172.23.224.1";
+const char* mqtt_server = "192.168.0.6";
 
 //
 WiFiClient espClient;
@@ -19,31 +20,51 @@ PubSubClient client(espClient);
 String rssi = "RSSI --";
 String packSize = "--";
 String packet ;
-unsigned int counter = 0;
+unsigned int totalReceived = 0;
 long lastSendTime = 0;        // last send time
 int interval = 1000;          // interval between sends
 
-
+//Display
 void logo() {
   Heltec.display->clear();
   Heltec.display->drawXbm(0, 5, logo_width, logo_height, logo_bits);
   Heltec.display->display();
 }
 
+void SetupDisplay() {
+  pinMode(16, OUTPUT);
+  pinMode(25, OUTPUT);
+  digitalWrite(16, LOW);    // set GPIO16 low to reset OLED
+  delay(50);
+  digitalWrite(16, HIGH); // while OLED is running, must set GPIO16 in high
+  Heltec.display->init();
+  Heltec.display->flipScreenVertically();
+  Heltec.display->setFont(ArialMT_Plain_10);
+  logo();
+  delay(500);
+}
+
+void PrintDisplaySuccess()
+{
+  Heltec.display->clear();
+  Heltec.display->drawString(0, 0, "Display inicializado com sucesso!");
+  Heltec.display->display();
+  delay(500);
+}
+
 void LoRaData() {
-  counter++;
   Heltec.display->clear();
   Heltec.display->setTextAlignment(TEXT_ALIGN_LEFT);
   Heltec.display->setFont(ArialMT_Plain_10);
   Heltec.display->drawString(0 , 12 , "Mensagem: ");
   Heltec.display->drawStringMaxWidth(0 , 24 , 128, packet);
-  Heltec.display->drawString(0, 0, "Total de UUIDS: " + String(counter));
+  Heltec.display->drawString(0, 0, "Total de UUIDS: ");
   Heltec.display->drawString(0, 48, rssi);
-
   Heltec.display->display();
 }
 
-void cbk(int packetSize) {
+//Lora
+void LoraCallback(int packetSize) {
   packet = "";
   packSize = String(packetSize, DEC);
   for (int i = 0; i < packetSize; i++) {
@@ -53,9 +74,22 @@ void cbk(int packetSize) {
   LoRaData();
   char charBuf[packetSize];
   packet.toCharArray(charBuf, packetSize);
-  client.publish("ble/uuid", charBuf);
+  Serial.println(charBuf);
 }
 
+void SetupLora() {
+  LoRa.receive();
+  LoRa.enableCrc();
+}
+
+void LoraListener() {
+  int packetSize = LoRa.parsePacket();
+  if (packetSize) {
+    LoraCallback(packetSize);
+  }
+}
+
+//Wifi
 void WIFISetUp(void)
 {
   // Set WiFi to station mode and disconnect from an AP if it was previously connected
@@ -99,14 +133,15 @@ void WIFISetUp(void)
   Heltec.display -> display();
   delay(500);
 }
-void reconnect() {
+
+void ReconnectMqtt() {
   // Loop until we're reconnected
   while (!client.connected()) {
-    Serial.print("Attempting MQTT connection...");
+    Serial.print("Tentando reconectar mqtt...");
     // Attempt to connect
-    if (client.connect("ESP8266Client")) {
+    if (client.connect("LoRa-Receiver-Client")) {
       Serial.println("connected");
-      // Subscribeclient.subscribe("ble/uuid");
+      client.subscribe("ble/uuid");
     } else {
       Serial.print("failed, rc=");
       Serial.print(client.state());
@@ -116,10 +151,12 @@ void reconnect() {
     }
   }
 }
-void callback(char* topic, byte* message, unsigned int length) {
-  Serial.print("Message arrived on topic: ");
-  Serial.print(topic);
-  Serial.print(". Message: ");
+
+//Mqtt
+void mqttCallback(char* topic, byte* message, unsigned int length) {
+  Serial.println("Chegou mensagem no tópico: ");
+  Serial.println(topic);
+  Serial.println(". Mensagem: ");
   String messageTemp;
 
   for (int i = 0; i < length; i++) {
@@ -127,44 +164,43 @@ void callback(char* topic, byte* message, unsigned int length) {
     messageTemp += (char)message[i];
   }
   Serial.println();
-
 }
-void setup() {
-  //WIFI Kit series V1 not support Vext control
 
-  pinMode(16, OUTPUT);
-  pinMode(25, OUTPUT);
-  digitalWrite(16, LOW);    // set GPIO16 low to reset OLED
-  delay(50);
-  digitalWrite(16, HIGH); // while OLED is running, must set GPIO16 in high
-  Heltec.begin(true /*DisplayEnable Enable*/, true /*Heltec.Heltec.Heltec.LoRa Disable*/, true /*Serial Enable*/, true /*PABOOST Enable*/, BAND /*long BAND*/);
-
-  Heltec.display->init();
-  Heltec.display->flipScreenVertically();
-  Heltec.display->setFont(ArialMT_Plain_10);
-  logo();
-  delay(1500);
-  WIFISetUp();
-  Heltec.display->clear();
-
-  Heltec.display->drawString(0, 0, "LoRa inicializado!");
-  Heltec.display->drawString(0, 10, "Esperando receber dado...");
-  Heltec.display->display();
-  delay(1000);
-  LoRa.receive();
-
+void SetupMqtt() {
   client.setServer(mqtt_server, 1883);
-  client.setCallback(callback);
+  client.setCallback(mqttCallback);
+}
+
+void CheckMqttConnection() {
+  if (!client.connected()) {
+    ReconnectMqtt();
+  }
+  client.loop();
+}
+
+void PubMqttMessage(String msg) {
+  char charBuf[msg.length() + 1];
+  msg.toCharArray(charBuf, msg.length() + 1);
+  //Serial.println(charBuf);
+  client.publish("ble/uuid", charBuf);
+}
+
+//**************************MAIN******************************
+void setup() {
+  Heltec.begin(true, true, true, true, BAND);
+  Serial.begin(115200);
+  SetupDisplay();
+  PrintDisplaySuccess();
+  //SetupLora();
+  WIFISetUp();
+  SetupMqtt();
 }
 
 void loop() {
-  int packetSize = LoRa.parsePacket();
-  if (packetSize) {
-    cbk(packetSize);
-  }
-  if (!client.connected()) {
-    reconnect();
-  }
-  client.loop();
-  delay(10);
+  //LoraListener();
+  CheckMqttConnection();
+  String testMsg = "/0/12345/12345/12345/12345/12345/1/12345/12345/12345/12345/12345/2/12345/12345/12345/12345/12345/3/12345/12345/12345/12345/12345/4/12345/12345/12345/12345/12345/5/12345/12345/12345/12345/12345/6/12345/12345/12345/12345/12345/7/12345/12345/12345/12345/12345/8/12345/12345/12345/12345/12345/9/12345/12345/12345/12345/12345/10,";
+  PubMqttMessage(testMsg);
+  Serial.println("tick");
+  delay(2000);
 }

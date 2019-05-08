@@ -13,22 +13,31 @@ const char* password = "reppolter99";
 //// Add your MQTT Broker IP address, example:
 const char* mqtt_server = "192.168.0.6";
 
-//
 WiFiClient espClient;
 PubSubClient client(espClient);
-
+long lastSendTime = 0;
 String rssi = "RSSI --";
 String packSize = "--";
 String packet ;
+String currentId = "";
 unsigned int totalReceived = 0;
-long lastSendTime = 0;        // last send time
 int interval = 1000;          // interval between sends
+int counter = 0;
 
 //Display
 void logo() {
   Heltec.display->clear();
   Heltec.display->drawXbm(0, 5, logo_width, logo_height, logo_bits);
   Heltec.display->display();
+}
+
+void SendData(String dataToSend) {
+  char charBuf[dataToSend.length() + 1];
+  dataToSend.toCharArray(charBuf, dataToSend.length() + 1);
+  Serial.println(charBuf);
+  LoRa.beginPacket();
+  LoRa.print(charBuf);
+  LoRa.endPacket();
 }
 
 void SetupDisplay() {
@@ -75,17 +84,25 @@ void LoraCallback(int packetSize) {
   char charBuf[packetSize];
   packet.toCharArray(charBuf, packetSize);
   Serial.println(charBuf);
+  Serial.println(String(charBuf).substring(3, 9));
+  if (currentId != String(charBuf).substring(3, 9)) {
+    currentId = String(charBuf).substring(3, 9);
+    CheckMqttConnection();
+    totalReceived++;
+    PubMqttMessage(String(charBuf));
+  }
 }
 
 void SetupLora() {
-  LoRa.receive();
   LoRa.enableCrc();
+  LoRa.receive();
 }
 
 void LoraListener() {
   int packetSize = LoRa.parsePacket();
   if (packetSize) {
     LoraCallback(packetSize);
+    SendData(currentId);
   }
 }
 
@@ -141,7 +158,7 @@ void ReconnectMqtt() {
     // Attempt to connect
     if (client.connect("LoRa-Receiver-Client")) {
       Serial.println("connected");
-      client.subscribe("ble/uuid");
+      //client.subscribe("ble/uuid");
     } else {
       Serial.print("failed, rc=");
       Serial.print(client.state());
@@ -181,7 +198,6 @@ void CheckMqttConnection() {
 void PubMqttMessage(String msg) {
   char charBuf[msg.length() + 1];
   msg.toCharArray(charBuf, msg.length() + 1);
-  //Serial.println(charBuf);
   client.publish("ble/uuid", charBuf);
 }
 
@@ -191,16 +207,19 @@ void setup() {
   Serial.begin(115200);
   SetupDisplay();
   PrintDisplaySuccess();
-  //SetupLora();
+  SetupLora();
   WIFISetUp();
   SetupMqtt();
 }
 
 void loop() {
-  //LoraListener();
-  CheckMqttConnection();
-  String testMsg = "/0/12345/12345/12345/12345/12345/1/12345/12345/12345/12345/12345/2/12345/12345/12345/12345/12345/3/12345/12345/12345/12345/12345/4/12345/12345/12345/12345/12345/5/12345/12345/12345/12345/12345/6/12345/12345/12345/12345/12345/7/12345/12345/12345/12345/12345/8/12345/12345/12345/12345/12345/9/12345/12345/12345/12345/12345/10,";
-  PubMqttMessage(testMsg);
-  Serial.println("tick");
-  delay(2000);
+
+  LoraListener();
+  if (counter % 100 == 0) {
+    Serial.println("Tick");
+    Serial.println(String(totalReceived));
+  }
+  counter++;
+  delay(100);
+
 }

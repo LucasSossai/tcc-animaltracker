@@ -7,6 +7,9 @@
 
 //Variáveis globais
 #define BAND    915E6  // frequência de operação do LoRa (915 MHz)
+#define TIMEWAITINGRECEIVE 5000
+
+long lastSendTime = 0;
 String rssi = "RSSI --";
 String packSize = "--";
 String packet ;
@@ -16,25 +19,35 @@ char auxTx[4];
 unsigned int totalSending = 0;
 unsigned int totalSent = 0;
 int scanTime = 3;
-int maxDeviceCount = 7;
 BLEScan *pBLEScan;
+bool messageArrived;
+char buf[7];
 
+const int maxSize = 50;
+char result0[maxSize] = "";
+char result1[maxSize] = "";
+char result2[maxSize] = "";
+char result3[maxSize] = "";
+char result4[maxSize] = "";
+char result5[maxSize] = "";
+
+char *pointer[6];
 
 //Funções de iBeacon
 void AdvertisingPayLoadReader(uint8_t *payload, size_t payloadSize)
 {
-  if (totalSending < maxDeviceCount) {
-    sprintf(auxCharArray, "%02hhX%02hhX%02hhX%02hhX%02hhX%02hhX%02hhX%02hhX%02hhX%02hhX%02hhX%02hhX%02hhX%02hhX%02hhX%02hhX;",
+  if (totalSending < 5) {
+    sprintf(auxCharArray, "%02hhX%02hhX%02hhX%02hhX%02hhX%02hhX%02hhX%02hhX%02hhX%02hhX%02hhX%02hhX%02hhX%02hhX%02hhX%02hhX,",
             payload[6], payload[7], payload[8], payload[9],
             payload[10], payload[11], payload[12], payload[13],
             payload[14], payload[15], payload[16], payload[17],
             payload[18], payload[19], payload[20], payload[21]);
     sprintf(auxTx, "%02hhi", payload[26]);
-    dataString += String(auxCharArray);
-    //int wtf = (int)auxTx;
-    Serial.println("\n auxTx: " + String(auxTx));
-    dataString += String(auxTx);
-    dataString += "/";
+    String auxDataString = String(auxCharArray);
+    auxDataString += String(auxTx);
+    auxDataString += "/";
+    auxDataString.toCharArray(pointer[totalSending], auxDataString.length() + 1);
+    Serial.println("Added this string: " + auxDataString + "in this index: pointer[" + totalSending + "]");
     totalSending++;
   }
 };
@@ -43,7 +56,7 @@ class MyAdvertisedDeviceCallbacks : public BLEAdvertisedDeviceCallbacks
 {
     void onResult(BLEAdvertisedDevice advertisedDevice)
     {
-      Serial.printf("\n Advertised Device: %s \n", advertisedDevice.toString().c_str());
+      //Serial.printf("\n Advertised Device: %s \n", advertisedDevice.toString().c_str());
       //Serial.printf("Advertised getPayloadLength: %d  \n", advertisedDevice.getPayloadLength());
       AdvertisingPayLoadReader(advertisedDevice.getPayload(), advertisedDevice.getPayloadLength());
     }
@@ -99,15 +112,29 @@ void PrintDisplaySuccess()
 //LoRA
 void SetupLora() {
   LoRa.enableCrc();
+  LoRa.receive();
 }
 
 void SendData(String dataToSend) {
-  char charBuf[dataToSend.length()];
-  dataToSend.toCharArray(charBuf, dataToSend.length());
-  Serial.println(charBuf);
+  char charBuf[dataToSend.length() + 1];
+  dataToSend.toCharArray(charBuf, dataToSend.length() + 1);
+  Serial.println("Sending this data via LoRa: " + dataToSend);
   LoRa.beginPacket();
   LoRa.print(charBuf);
   LoRa.endPacket();
+}
+
+void receive(String id) {
+  String packet = "";
+  int packetSize = LoRa.parsePacket();
+  if (packetSize) {
+    for (int i = 0; i < packetSize; i++) {
+      packet += (char) LoRa.read();
+    }
+    if (packet == id) {
+      messageArrived = true;
+    }
+  }
 }
 
 //Main
@@ -119,26 +146,57 @@ void setup()
   PrintDisplaySuccess();
   SetupBLE();
   SetupLora();
+  pointer[0] = result0;
+  pointer[1] = result1;
+  pointer[2] = result2;
+  pointer[3] = result3;
+  pointer[4] = result4;
+  pointer[5] = result5;
+
 }
 
 void loop()
 {
   totalSending = 0;
-  dataString = "id:" + String(totalSent) + "/";
   BLEScanResults foundDevices = pBLEScan->start(scanTime, false);
-  dataString += "|";
 
-  bool messageArrived = false;
-  int auxCounter = 0;
-  while (!messageArrived) {
-    auxCounter++;
-    SendData(dataString);
+  Serial.println("Devices that will be sent:");
+  Serial.println("0 : " + String(pointer[0]));
+  Serial.println("1 : " + String(pointer[1]));
+  Serial.println("2 : " + String(pointer[2]));
+  Serial.println("3 : " + String(pointer[3]));
+  Serial.println("4 : " + String(pointer[4]));
+  int i = 0;
+  int maxCounter = totalSending;
+  for ( i = 0; i < maxCounter; i++) {
+    sprintf(buf, "%06d", totalSent);
+    dataString = "id:" + String(buf) + "/";
+    messageArrived = false;
+    while (!messageArrived) {
 
-    if (auxCounter > 5) {
-      messageArrived = true;
-      totalSent++;
+      String msg = String(dataString) + String(pointer[totalSending - 1]);
+      SendData(msg);
+      lastSendTime = millis();
+      while (millis() < lastSendTime + TIMEWAITINGRECEIVE) {
+        receive(dataString.substring(3, 9));
+        delay(50);
+      }
     }
+    totalSent++;
+
+    totalSending--;
   }
+  String clearString = "";
+  clearString.toCharArray(result0, clearString.length() + 1);
+  clearString.toCharArray(result1, clearString.length() + 1);
+  clearString.toCharArray(result2, clearString.length() + 1);
+  clearString.toCharArray(result3, clearString.length() + 1);
+  clearString.toCharArray(result4, clearString.length() + 1);
+  clearString.toCharArray(result5, clearString.length() + 1);
   DisplayStatus();
   pBLEScan->clearResults(); // delete results fromBLEScan buffer to release memory
+
+
+
+
 }

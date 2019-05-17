@@ -7,11 +7,13 @@
 #define BAND    915E6  //Frequência de operação do LoRa
 
 // Replace the next variables with your SSID/Password combination
-const char* ssid = "Asilo 2.4 GHz";
-const char* password = "reppolter99";
+//const char* ssid = "Asilo 2.4 GHz";
+//const char* password = "reppolter99";
+const char* ssid = "Sofia-quarto";
+const char* password = "a1b2c3d4e5";
 
 //// Add your MQTT Broker IP address, example:
-const char* mqtt_server = "192.168.0.6";
+const char* mqtt_server = "192.168.1.101";
 
 WiFiClient espClient;
 PubSubClient client(espClient);
@@ -84,9 +86,9 @@ void LoraCallback(int packetSize) {
   char charBuf[packetSize];
   packet.toCharArray(charBuf, packetSize);
   Serial.println(charBuf);
-  Serial.println(String(charBuf).substring(3, 9));
-  if (currentId != String(charBuf).substring(3, 9)) {
-    currentId = String(charBuf).substring(3, 9);
+  Serial.println(String(charBuf).substring(0, 2));
+  if (currentId != String(charBuf).substring(0, 2)) {
+    currentId = String(charBuf).substring(0, 2);
     CheckMqttConnection();
     totalReceived++;
     PubMqttMessage(String(charBuf));

@@ -7,23 +7,23 @@
 
 //Variáveis globais
 #define BAND    915E6  // frequência de operação do LoRa (915 MHz)
-#define TIMEWAITINGRECEIVE 5000
+#define TIMEWAITINGRECEIVE 500
 
 long lastSendTime = 0;
 String rssi = "RSSI --";
 String packSize = "--";
 String packet ;
 String dataString = "";
-char auxCharArray[40];
+char auxCharArray[80];
 char auxTx[4];
 unsigned int totalSending = 0;
 unsigned int totalSent = 0;
 int scanTime = 3;
 BLEScan *pBLEScan;
 bool messageArrived;
-char buf[7];
+char buf[3];
 
-const int maxSize = 50;
+const int maxSize = 80;
 char result0[maxSize] = "";
 char result1[maxSize] = "";
 char result2[maxSize] = "";
@@ -34,7 +34,7 @@ char result5[maxSize] = "";
 char *pointer[6];
 
 //Funções de iBeacon
-void AdvertisingPayLoadReader(uint8_t *payload, size_t payloadSize)
+void AdvertisingPayLoadReader(uint8_t *payload, unsigned char rssi)
 {
   if (totalSending < 5) {
     sprintf(auxCharArray, "%02hhX%02hhX%02hhX%02hhX%02hhX%02hhX%02hhX%02hhX%02hhX%02hhX%02hhX%02hhX%02hhX%02hhX%02hhX%02hhX,",
@@ -42,9 +42,17 @@ void AdvertisingPayLoadReader(uint8_t *payload, size_t payloadSize)
             payload[10], payload[11], payload[12], payload[13],
             payload[14], payload[15], payload[16], payload[17],
             payload[18], payload[19], payload[20], payload[21]);
-    sprintf(auxTx, "%02hhi", payload[26]);
+    //    sprintf(auxCharArray, "%02hhX%02hhX%02hhX%02hhX%02hhX%02hhX%02hhX%02hhX%02hhX%02hhX%02hhX%02hhX%02hhX%02hhX%02hhX%02hhX%02hhX%02hhX%02hhX%02hhX%02hhX%02hhX%02hhX%02hhX",
+    //            payload[0], payload[1], payload[2], payload[3], payload[4], payload[5],
+    //            payload[6], payload[7], payload[8], payload[9], payload[10], payload[11],
+    //            payload[12], payload[13], payload[14], payload[15], payload[16], payload[17],
+    //            payload[18], payload[19], payload[20], payload[21], payload[22], payload[23],
+    //            payload[24], payload[25], payload[26], payload[27], payload[28], payload[29]);
+
+    // sprintf(auxTx, "%02hhi", payload[26]);
     String auxDataString = String(auxCharArray);
-    auxDataString += String(auxTx);
+    int auxRssi = int(rssi) - 256;
+    auxDataString += String(auxRssi);
     auxDataString += "/";
     auxDataString.toCharArray(pointer[totalSending], auxDataString.length() + 1);
     Serial.println("Added this string: " + auxDataString + "in this index: pointer[" + totalSending + "]");
@@ -57,8 +65,7 @@ class MyAdvertisedDeviceCallbacks : public BLEAdvertisedDeviceCallbacks
     void onResult(BLEAdvertisedDevice advertisedDevice)
     {
       //Serial.printf("\n Advertised Device: %s \n", advertisedDevice.toString().c_str());
-      //Serial.printf("Advertised getPayloadLength: %d  \n", advertisedDevice.getPayloadLength());
-      AdvertisingPayLoadReader(advertisedDevice.getPayload(), advertisedDevice.getPayloadLength());
+      AdvertisingPayLoadReader(advertisedDevice.getPayload(), advertisedDevice.getRSSI());
     }
 };
 
@@ -169,8 +176,8 @@ void loop()
   int i = 0;
   int maxCounter = totalSending;
   for ( i = 0; i < maxCounter; i++) {
-    sprintf(buf, "%06d", totalSent);
-    dataString = "id:" + String(buf) + "/";
+    sprintf(buf, "%02d", totalSent);
+    dataString = String(buf) + "/";
     messageArrived = false;
     while (!messageArrived) {
 
@@ -178,12 +185,14 @@ void loop()
       SendData(msg);
       lastSendTime = millis();
       while (millis() < lastSendTime + TIMEWAITINGRECEIVE) {
-        receive(dataString.substring(3, 9));
+        receive(dataString.substring(0, 2));
         delay(50);
       }
     }
     totalSent++;
-
+    if (totalSent == 100) {
+      totalSent = 0;
+    }
     totalSending--;
   }
   String clearString = "";

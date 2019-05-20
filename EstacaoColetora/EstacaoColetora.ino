@@ -1,3 +1,6 @@
+// Código desenvolvido por Lucas Sossai em 2019 para TCC.
+// Email para contato: lucas.sossai2@gmail.com
+// A principal função da estação coletora é scanear sinais BLE , processar o dado e enviar via LoRa para a estação central
 #include "heltec.h"
 #include "images.h"
 #include <BLEDevice.h>
@@ -5,10 +8,10 @@
 #include <BLEScan.h>
 #include <BLEAdvertisedDevice.h>
 
-//Variáveis globais
 #define BAND    915E6  // frequência de operação do LoRa (915 MHz)
 #define TIMEWAITINGRECEIVE 500
 
+//Variáveis globais
 long lastSendTime = 0;
 String rssi = "RSSI --";
 String packSize = "--";
@@ -22,7 +25,6 @@ int scanTime = 3;
 BLEScan *pBLEScan;
 bool messageArrived;
 char buf[3];
-
 const int maxSize = 80;
 char result0[maxSize] = "";
 char result1[maxSize] = "";
@@ -30,10 +32,9 @@ char result2[maxSize] = "";
 char result3[maxSize] = "";
 char result4[maxSize] = "";
 char result5[maxSize] = "";
-
 char *pointer[6];
 
-//Funções de iBeacon
+//Funções da BLE
 void AdvertisingPayLoadReader(uint8_t *payload, unsigned char rssi)
 {
   if (totalSending < 5) {
@@ -42,14 +43,6 @@ void AdvertisingPayLoadReader(uint8_t *payload, unsigned char rssi)
             payload[10], payload[11], payload[12], payload[13],
             payload[14], payload[15], payload[16], payload[17],
             payload[18], payload[19], payload[20], payload[21]);
-    //    sprintf(auxCharArray, "%02hhX%02hhX%02hhX%02hhX%02hhX%02hhX%02hhX%02hhX%02hhX%02hhX%02hhX%02hhX%02hhX%02hhX%02hhX%02hhX%02hhX%02hhX%02hhX%02hhX%02hhX%02hhX%02hhX%02hhX",
-    //            payload[0], payload[1], payload[2], payload[3], payload[4], payload[5],
-    //            payload[6], payload[7], payload[8], payload[9], payload[10], payload[11],
-    //            payload[12], payload[13], payload[14], payload[15], payload[16], payload[17],
-    //            payload[18], payload[19], payload[20], payload[21], payload[22], payload[23],
-    //            payload[24], payload[25], payload[26], payload[27], payload[28], payload[29]);
-
-    // sprintf(auxTx, "%02hhi", payload[26]);
     String auxDataString = String(auxCharArray);
     int auxRssi = int(rssi) - 256;
     auxDataString += String(auxRssi);
@@ -116,7 +109,7 @@ void PrintDisplaySuccess()
   delay(500);
 }
 
-//LoRA
+// Funções que envolvem LoRa
 void SetupLora() {
   LoRa.enableCrc();
   LoRa.receive();
@@ -143,8 +136,7 @@ void receive(String id) {
     }
   }
 }
-
-//Main
+//**************************MAIN******************************
 void setup()
 {
   Heltec.begin(true, true, true, true, BAND);
@@ -166,7 +158,6 @@ void loop()
 {
   totalSending = 0;
   BLEScanResults foundDevices = pBLEScan->start(scanTime, false);
-
   Serial.println("Devices that will be sent:");
   Serial.println("0 : " + String(pointer[0]));
   Serial.println("1 : " + String(pointer[1]));
@@ -204,8 +195,4 @@ void loop()
   clearString.toCharArray(result5, clearString.length() + 1);
   DisplayStatus();
   pBLEScan->clearResults(); // delete results fromBLEScan buffer to release memory
-
-
-
-
 }

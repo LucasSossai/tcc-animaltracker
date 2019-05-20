@@ -1,20 +1,21 @@
+// Código desenvolvido por Lucas Sossai em 2019 para TCC.
+// Email para contato: lucas.sossai2@gmail.com
+// A principal função da estação central é receber os dados via LoRa da estação central e publicar no servidor MQTT
 #include <PubSubClient.h>
 #include "heltec.h"
 #include "images.h"
 #include "WiFi.h"
 #include "Arduino.h"
-
 #define BAND    915E6  //Frequência de operação do LoRa
 
-// Replace the next variables with your SSID/Password combination
-//const char* ssid = "Asilo 2.4 GHz";
-//const char* password = "reppolter99";
+//Insira o SSID e senha da Rede
 const char* ssid = "Sofia-quarto";
 const char* password = "a1b2c3d4e5";
 
-//// Add your MQTT Broker IP address, example:
+// Endereço do broker mqtt
 const char* mqtt_server = "192.168.1.101";
 
+//Variáveis globais
 WiFiClient espClient;
 PubSubClient client(espClient);
 long lastSendTime = 0;
@@ -26,20 +27,11 @@ unsigned int totalReceived = 0;
 int interval = 1000;          // interval between sends
 int counter = 0;
 
-//Display
+//Funções referente ao uso do display
 void logo() {
   Heltec.display->clear();
   Heltec.display->drawXbm(0, 5, logo_width, logo_height, logo_bits);
   Heltec.display->display();
-}
-
-void SendData(String dataToSend) {
-  char charBuf[dataToSend.length() + 1];
-  dataToSend.toCharArray(charBuf, dataToSend.length() + 1);
-  Serial.println(charBuf);
-  LoRa.beginPacket();
-  LoRa.print(charBuf);
-  LoRa.endPacket();
 }
 
 void SetupDisplay() {
@@ -74,7 +66,7 @@ void LoRaData() {
   Heltec.display->display();
 }
 
-//Lora
+// Funções do LoRa
 void LoraCallback(int packetSize) {
   packet = "";
   packSize = String(packetSize, DEC);
@@ -95,6 +87,15 @@ void LoraCallback(int packetSize) {
   }
 }
 
+void SendData(String dataToSend) {
+  char charBuf[dataToSend.length() + 1];
+  dataToSend.toCharArray(charBuf, dataToSend.length() + 1);
+  Serial.println(charBuf);
+  LoRa.beginPacket();
+  LoRa.print(charBuf);
+  LoRa.endPacket();
+}
+
 void SetupLora() {
   LoRa.enableCrc();
   LoRa.receive();
@@ -108,7 +109,7 @@ void LoraListener() {
   }
 }
 
-//Wifi
+// Funções do WiFi
 void WIFISetUp(void)
 {
   // Set WiFi to station mode and disconnect from an AP if it was previously connected
@@ -153,6 +154,7 @@ void WIFISetUp(void)
   delay(500);
 }
 
+// Funções do MQTT
 void ReconnectMqtt() {
   // Loop until we're reconnected
   while (!client.connected()) {
@@ -171,7 +173,6 @@ void ReconnectMqtt() {
   }
 }
 
-//Mqtt
 void mqttCallback(char* topic, byte* message, unsigned int length) {
   Serial.println("Chegou mensagem no tópico: ");
   Serial.println(topic);

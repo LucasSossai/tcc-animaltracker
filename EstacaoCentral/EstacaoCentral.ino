@@ -9,11 +9,11 @@
 #define BAND    915E6  //Frequência de operação do LoRa
 
 //Insira o SSID e senha da Rede
-const char* ssid = "Sofia-quarto";
-const char* password = "a1b2c3d4e5";
+const char* ssid = "AnimalTracker";
+const char* password = "reppolter99";
 
 // Endereço do broker mqtt
-const char* mqtt_server = "192.168.1.101";
+const char* mqtt_server = "192.168.43.230";
 
 //Variáveis globais
 WiFiClient espClient;
